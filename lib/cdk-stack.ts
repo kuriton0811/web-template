@@ -31,6 +31,7 @@ export class CdkHelloWorldStack extends cdk.Stack {
     const api = new apigateway.LambdaRestApi(this, "HelloWorldApi", {
       handler: helloWorldFunction,
       proxy: false,
+      disableExecuteApiEndpoint: true,
     });
 
     // Define the '/hello' resource with a GET method
@@ -40,7 +41,8 @@ export class CdkHelloWorldStack extends cdk.Stack {
     helloResource.addMethod("PATCH");
     helloResource.addMethod("DELETE");
     helloResource.addMethod("PUT");
-
+    helloResource.addMethod("OPTIONS");
+    helloResource.addMethod("HEAD");
     // DynamoDB
     const table = new dynamodb.Table(this, "MyTable", {
       partitionKey: { name: "id", type: dynamodb.AttributeType.STRING },
@@ -54,10 +56,12 @@ export class CdkHelloWorldStack extends cdk.Stack {
     // Policy
     table.grantReadWriteData(helloWorldFunction);
 
+    const domain = api.url.split("//")[1];
+
     // CloudFront
     const distribution = new cloudfront.Distribution(this, "MyDistribution", {
       defaultBehavior: {
-        origin: new origins.HttpOrigin(api.url),
+        origin: new origins.HttpOrigin(domain.split("/")[0]),
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,

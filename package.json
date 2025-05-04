@@ -7,11 +7,11 @@
   "scripts": {
     "build": "tsc --noemit && node build.js",
     "build:layer": "npm install --omit=dev && cd lambda && move ../node_modules nodejs/node_modules",
-    "synth": "npm run build && cdk synth",
+    "synth": "npm run build && cdk synth --no-version-reporting --no-path-metadata",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "cdk:deploy": "cdk deploy"
+    "cdk:deploy": "cdk deploy --no-version-reporting --no-path-metadata"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
