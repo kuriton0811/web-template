@@ -4,6 +4,10 @@ import { Construct } from "constructs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as path from "path";
 
 export class CdkHelloWorldStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -15,9 +19,6 @@ export class CdkHelloWorldStack extends cdk.Stack {
       code: lambda.Code.fromAsset("lambda"), // Points to the lambda directory
       handler: "handler.handler", // Points to the 'hello' file in the lambda directory
     });
-
-    // Env
-    helloWorldFunction.addEnvironment("NODE_ENV", "production");
 
     // Layer
     const layer = new lambda.LayerVersion(this, "MyLayer", {
@@ -46,8 +47,55 @@ export class CdkHelloWorldStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
-    // Policy
+    // Env
+    helloWorldFunction.addEnvironment("NODE_ENV", "production");
     helloWorldFunction.addEnvironment("TABLE_NAME", table.tableName);
+
+    // Policy
     table.grantReadWriteData(helloWorldFunction);
+
+    // CloudFront
+    const distribution = new cloudfront.Distribution(this, "MyDistribution", {
+      defaultBehavior: {
+        origin: new origins.HttpOrigin(api.url),
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+    });
+
+    // Cognito
+    // const userPool = new cognito.UserPool(this, "MyUserPool", {
+    //   userPoolName: "MyUserPool",
+    //   selfSignUpEnabled: true,
+    //   signInAliases: {
+    //     email: true,
+    //   },
+    //   lambdaTriggers: {
+    //     postConfirmation: helloWorldFunction,
+    //   },
+    // });
+    // const userPoolClient = new cognito.UserPoolClient(this, "MyUserPoolClient", {
+    //   userPool,
+    //   userPoolClientName: "MyUserPoolClient",
+    //   authFlows: {
+    //     adminUserPassword: true,
+    //     userPassword: true,
+    //     userSrp: true,
+    //     custom: true,
+    //   },
+    //   generateSecret: false,
+    // });
+    // const identityPool = new cognito.CognitoCognito(this, "MyIdentityPool", {
+    //   identityPoolName: "MyIdentityPool",
+    //   allowUnauthenticatedIdentities: true,
+    //   cognitoUserPools: [userPool],
+    //   cognitoUserPoolClients: [userPoolClient],
+    // });
+    // const auth = new cognito.CognitoUserPoolDomain(this, "MyUserPoolDomain", {
+    //   userPool,
+    //   cognitoUserPoolDomainName: "my-user-pool-domain",
+    // });
   }
 }
