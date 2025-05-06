@@ -72,7 +72,7 @@ export class CdkHelloWorldStack extends cdk.Stack {
 
     bucket.addToResourcePolicy(
       new iam.PolicyStatement({
-        actions: ["s3:GetObject", "s3:ListBucket"],
+        actions: ["s3:GetObject"],
         resources: [`${bucket.bucketArn}/*`],
         principals: [new iam.ServicePrincipal("cloudfront.amazonaws.com")],
       })
@@ -115,7 +115,7 @@ export class CdkHelloWorldStack extends cdk.Stack {
     const distribution = new cloudfront.Distribution(this, "MyDistribution", {
       defaultBehavior: frontendBehavior,
       additionalBehaviors: {
-        "/prod/*": apiBehavior,
+        "/api/*": apiBehavior,
       },
     });
   }
