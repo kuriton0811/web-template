@@ -6,6 +6,8 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as path from "path";
 
@@ -17,7 +19,7 @@ export class CdkHelloWorldStack extends cdk.Stack {
     const helloWorldFunction = new lambda.Function(this, "HelloWorldFunction", {
       runtime: lambda.Runtime.NODEJS_22_X, // Choose any supported Node.js runtime
       code: lambda.Code.fromAsset("lambda"), // Points to the lambda directory
-      handler: "handler.handler", // Points to the 'hello' file in the lambda directory
+      handler: "index.handler", // Points to the 'hello' file in the lambda directory
     });
 
     // Layer
@@ -35,7 +37,7 @@ export class CdkHelloWorldStack extends cdk.Stack {
     });
 
     // Define the '/hello' resource with a GET method
-    const helloResource = api.root.addResource("hello");
+    const helloResource = api.root.addResource("api");
     helloResource.addMethod("GET");
     helloResource.addMethod("POST");
     helloResource.addMethod("PATCH");
@@ -58,48 +60,63 @@ export class CdkHelloWorldStack extends cdk.Stack {
 
     const domain = api.url.split("//")[1];
 
-    // CloudFront
-    const distribution = new cloudfront.Distribution(this, "MyDistribution", {
-      defaultBehavior: {
-        origin: new origins.HttpOrigin(domain.split("/")[0]),
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
-        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      },
+    // S3 Bucket
+    const bucket = new s3.Bucket(this, "MyBucket", {
+      bucketName: "mybucket-009032819614",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: false,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      websiteIndexDocument: "index.html",
     });
 
-    // Cognito
-    // const userPool = new cognito.UserPool(this, "MyUserPool", {
-    //   userPoolName: "MyUserPool",
-    //   selfSignUpEnabled: true,
-    //   signInAliases: {
-    //     email: true,
-    //   },
-    //   lambdaTriggers: {
-    //     postConfirmation: helloWorldFunction,
-    //   },
-    // });
-    // const userPoolClient = new cognito.UserPoolClient(this, "MyUserPoolClient", {
-    //   userPool,
-    //   userPoolClientName: "MyUserPoolClient",
-    //   authFlows: {
-    //     adminUserPassword: true,
-    //     userPassword: true,
-    //     userSrp: true,
-    //     custom: true,
-    //   },
-    //   generateSecret: false,
-    // });
-    // const identityPool = new cognito.CognitoCognito(this, "MyIdentityPool", {
-    //   identityPoolName: "MyIdentityPool",
-    //   allowUnauthenticatedIdentities: true,
-    //   cognitoUserPools: [userPool],
-    //   cognitoUserPoolClients: [userPoolClient],
-    // });
-    // const auth = new cognito.CognitoUserPoolDomain(this, "MyUserPoolDomain", {
-    //   userPool,
-    //   cognitoUserPoolDomainName: "my-user-pool-domain",
-    // });
+    bucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject", "s3:ListBucket"],
+        resources: [`${bucket.bucketArn}/*`],
+        principals: [new iam.ServicePrincipal("cloudfront.amazonaws.com")],
+      })
+    );
+
+    // API Behavior
+    const apiBehavior = {
+      origin: new origins.HttpOrigin(domain.split("/")[0]),
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+      cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+      cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    };
+
+    // Frontend Behavior
+    const frontendBehavior = {
+      origin: new origins.S3Origin(bucket),
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+      cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      compress: true,
+      defaultTtl: cdk.Duration.days(1),
+      minTtl: cdk.Duration.seconds(0),
+      maxTtl: cdk.Duration.days(365),
+      originRequestPolicy: new cloudfront.OriginRequestPolicy(
+        this,
+        "MyOriginRequestPolicy",
+        {
+          cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
+          // headerBehavior:
+          //   cloudfront.OriginRequestHeaderBehavior.allowList("Authorization"),
+          queryStringBehavior:
+            cloudfront.OriginRequestQueryStringBehavior.all(),
+        }
+      ),
+    };
+
+    // CloudFront
+    const distribution = new cloudfront.Distribution(this, "MyDistribution", {
+      defaultBehavior: frontendBehavior,
+      additionalBehaviors: {
+        "/prod/*": apiBehavior,
+      },
+    });
   }
 }

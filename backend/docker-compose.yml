@@ -1,0 +1,9 @@
+services:
+  # DynamoDB Local is a client-side database that supports the complete DynamoDB API, but doesn't manipulate any tables or data in DynamoDB itself.
+  dynamodb:
+    image: amazon/dynamodb-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./dynamodb:/data
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /data"
